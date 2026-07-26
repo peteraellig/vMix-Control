@@ -355,4 +355,4 @@ If a TCP sender was created, dispose it during application shutdown.
 ## License
 
 This project is licensed under the GNU General Public License v3.0. See
-`LICENSE` for the full license text.
+[`LICENSE`](LICENSE) for the full license text.
