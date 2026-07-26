@@ -101,6 +101,8 @@ Public Class MainForm
             "Greyed-out fields aren't needed by the selected function (see FunctionSpec in MainForm.vb - just add new commands there)." & vbCrLf &
             """Don't encode Value"" applies to any function with a Value field - useful e.g. to compare Addinput paths with/without encoding."
 
+        ApplyConnectionSettings()
+
         cmbFunction.Items.Clear()
         cmbFunction.Items.AddRange({"SetText", "SetImage", "SetColor", "SetTextColour", "SetTextVisibleOn", "SetTextVisibleOff", "SetImageVisibleOn", "SetImageVisibleOff", "TitleBeginAnimation", "OverlayInput1IN", "OverlayInput1Out", "Addinput"})
         ' Triggers cmbFunction_SelectedIndexChanged (ComboBox.SelectedIndex
@@ -140,11 +142,14 @@ Public Class MainForm
         txtValue.Text = spec.PresetValue
     End Sub
 
-    ' Reads IP/port from the textboxes and returns the matching sender - the
-    ' HTTP and TCP senders both stay alive (not just one of them
-    ' instantiated), so the TCP connection isn't constantly rebuilt when
-    ' toggling HTTP<->TCP.
-    Private Function CurrentSender() As IVmixSender
+    ' Pushes IP/port from the textboxes into both senders. Called once at
+    ' startup (see MainForm_Load) and again whenever one of the connection
+    ' fields actually changes (see ConnectionField_Changed below) - NOT on
+    ' every single send. Re-parsing the same strings before every command
+    ' would be pointless work when nothing changed since the last one; the
+    ' real broadcast tools apply IP/port/protocol at clear points too (form
+    ' load, "Save Settings"), not inline in the send path.
+    Private Sub ApplyConnectionSettings()
         httpSender.Ip = txtIp.Text.Trim()
         tcpSender.Ip = txtIp.Text.Trim()
 
@@ -153,7 +158,16 @@ Public Class MainForm
 
         Dim tcpPort As Integer
         If Integer.TryParse(txtTcpPort.Text.Trim(), tcpPort) Then tcpSender.Port = tcpPort
+    End Sub
 
+    Private Sub ConnectionField_Changed(sender As Object, e As EventArgs) Handles txtIp.TextChanged, txtHttpPort.TextChanged, txtTcpPort.TextChanged, rbHttp.CheckedChanged, rbTcp.CheckedChanged
+        ApplyConnectionSettings()
+    End Sub
+
+    ' Both senders are always kept up to date by ApplyConnectionSettings -
+    ' picking one here is just a matter of which protocol is currently
+    ' selected, no parsing needed.
+    Private Function CurrentSender() As IVmixSender
         If rbHttp.Checked Then
             Return httpSender
         Else
@@ -185,10 +199,8 @@ Public Class MainForm
     ' there, the XML response shows them exactly. Deliberately always uses
     ' HTTP, regardless of the HTTP/TCP choice above.
     Private Sub btnFetchState_Click(sender As Object, e As EventArgs) Handles btnFetchState.Click
-        httpSender.Ip = txtIp.Text.Trim()
-        Dim httpPort As Integer
-        If Integer.TryParse(txtHttpPort.Text.Trim(), httpPort) Then httpSender.Port = httpPort
-
+        ' httpSender.Ip/Port are already current (see ApplyConnectionSettings) -
+        ' no need to re-read the textboxes here.
         Dim xml As String = httpSender.Send("")
         If xml.StartsWith("Error") Then
             MessageBox.Show(xml, "Could not fetch vMix status", MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -290,10 +302,11 @@ Public Class MainForm
         End If
 
         ' This mirrors exactly what MainForm.vb itself does (httpSender/
-        ' tcpSender fields + CurrentSender() reading Ip/Port from txtIp/
-        ' txtHttpPort/txtTcpPort and picking by rbHttp.Checked) - not a
-        ' simplified stand-in. Swap in your own controls' names, or replace
-        ' them with fixed values/settings if your project has no such UI.
+        ' tcpSender fields, ApplyConnectionSettings() applied at startup and
+        ' on change events rather than on every send, CurrentSender() just
+        ' picking by rbHttp.Checked) - not a simplified stand-in. Swap in
+        ' your own controls' names, or replace them with fixed values/
+        ' settings if your project has no such UI.
         Return "' 1) Copy these 4 files into your project:" & vbCrLf &
             "'    IVmixSender.vb, VmixHttpSender.vb, VmixTcpSender.vb, VmixCommandBuilder.vb" & vbCrLf &
             "'" & vbCrLf &
@@ -301,16 +314,21 @@ Public Class MainForm
             "Private ReadOnly httpSender As New VmixHttpSender()" & vbCrLf &
             "Private ReadOnly tcpSender As New VmixTcpSender()" & vbCrLf &
             vbCrLf &
-            "' 3) Read IP/port from your own UI and pick the sender matching your" & vbCrLf &
-            "'    protocol selection (here: txtIp/txtHttpPort/txtTcpPort/rbHttp - same" & vbCrLf &
-            "'    control names as in this project):" & vbCrLf &
-            "Private Function CurrentSender() As IVmixSender" & vbCrLf &
+            "' 3) Push IP/port into both senders once at startup, and again whenever" & vbCrLf &
+            "'    they actually change - NOT on every single send (here: txtIp/" & vbCrLf &
+            "'    txtHttpPort/txtTcpPort/rbHttp - same control names as in this project):" & vbCrLf &
+            "Private Sub ApplyConnectionSettings()" & vbCrLf &
             "    httpSender.Ip = txtIp.Text.Trim()" & vbCrLf &
             "    tcpSender.Ip = txtIp.Text.Trim()" & vbCrLf &
             "    Dim httpPort As Integer" & vbCrLf &
             "    If Integer.TryParse(txtHttpPort.Text.Trim(), httpPort) Then httpSender.Port = httpPort" & vbCrLf &
             "    Dim tcpPort As Integer" & vbCrLf &
             "    If Integer.TryParse(txtTcpPort.Text.Trim(), tcpPort) Then tcpSender.Port = tcpPort" & vbCrLf &
+            "End Sub" & vbCrLf &
+            "' Call ApplyConnectionSettings() once in Form_Load, and again from a" & vbCrLf &
+            "' TextChanged/CheckedChanged handler on those same controls (see" & vbCrLf &
+            "' ConnectionField_Changed here) - then picking a sender is just:" & vbCrLf &
+            "Private Function CurrentSender() As IVmixSender" & vbCrLf &
             "    Return If(rbHttp.Checked, CType(httpSender, IVmixSender), tcpSender)" & vbCrLf &
             "End Function" & vbCrLf &
             "' (dispose tcpSender when your form closes, see MainForm_FormClosing here)" & vbCrLf &
