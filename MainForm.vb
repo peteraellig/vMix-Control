@@ -43,7 +43,7 @@ Public Class MainForm
     Private Const ExampleFolder As String = "C:\vmix\example\"
 
     ' These objects send commands to vMix.
-    ' The program keeps both objects ready so the user can change protocol.
+    ' The program keeps both objects ready so the user can change or choose a protocol.
     Private ReadOnly httpSender As New VmixHttpSender()
     Private ReadOnly tcpSender As New VmixTcpSender()
 
@@ -66,13 +66,15 @@ Public Class MainForm
         Public PresetValue As String = ""
     End Class
 
-    ' Contains the description of every function available in the list.
-    Private ReadOnly functionSpecs As Dictionary(Of String, FunctionSpec) = BuildFunctionSpecs()
+    ' Contains the small set of functions that have working UI examples.
+    '
+    ' VmixFunctionCatalog.Functions contains the complete vMix 29 reference.
+    Private ReadOnly functionSpecs As Dictionary(Of String, FunctionSpec) = BuildDemoFunctionSpecs()
 
-    ' Creates the list of available vMix functions.
+    ' Creates the small list of functions demonstrated by this form.
     '
     ' Each entry also contains example values for example_title.gtzip.
-    Private Function BuildFunctionSpecs() As Dictionary(Of String, FunctionSpec)
+    Private Function BuildDemoFunctionSpecs() As Dictionary(Of String, FunctionSpec)
         Dim specs As New Dictionary(Of String, FunctionSpec)
 
         ' These functions change a field and therefore need a new value.

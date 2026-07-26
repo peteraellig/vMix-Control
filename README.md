@@ -49,11 +49,12 @@ sender     sender
      vMix
 ```
 
-The application is split into four reusable files:
+The communication example is split into five reusable files:
 
 | File | Responsibility |
 |---|---|
 | `VmixCommandBuilder.vb` | Builds commands and encodes all dynamic parameters |
+| `VmixFunctionCatalog.vb` | Complete vMix 29 function reference with categories and parameters |
 | `IVmixSender.vb` | Defines the common sender interface |
 | `VmixHttpSender.vb` | Translates a command into an HTTP GET request |
 | `VmixTcpSender.vb` | Translates a command into a vMix TCP protocol line and maintains the connection |
@@ -65,6 +66,43 @@ Dim result As String = sender.Send(command)
 ```
 
 They do not need separate command-building code for HTTP and TCP.
+
+## vMix 29 function catalog
+
+`VmixFunctionCatalog.Functions` contains all 775 functions listed in the
+official [vMix 29 Shortcut Function Reference](https://www.vmix.com/help29/ShortcutFunctionReference.html).
+Each entry contains:
+
+- `Name`
+- `Category`
+- `Parameters`
+- Convenience properties such as `NeedsInput`, `NeedsValue`, `NeedsMix`, and
+  `NeedsDuration`
+
+Example:
+
+```vb
+Dim setText = VmixFunctionCatalog.FindByName("SetText")
+
+If setText IsNot Nothing Then
+    Debug.WriteLine(setText.Category)
+    Debug.WriteLine(setText.Parameters)
+    Debug.WriteLine(setText.NeedsInput)
+    Debug.WriteLine(setText.NeedsValue)
+End If
+```
+
+The catalog is created only once, when it is first used. It is reference data;
+it does not open a connection and does not send commands.
+
+The function list shown in the demonstration ComboBox is intentionally much
+smaller. Those entries include working values for the supplied
+`example_title.gtzip`. A command appearing in the full reference does not mean
+that the example title has suitable test fields or values for it.
+
+Some functions accept optional details such as `SelectedName` or
+`SelectedIndex`. Consult the linked official documentation before using an
+unfamiliar function.
 
 ## Why use a command builder?
 
@@ -302,6 +340,7 @@ Copy these files into another VB.NET project:
 ```text
 IVmixSender.vb
 VmixCommandBuilder.vb
+VmixFunctionCatalog.vb (optional reference list)
 VmixHttpSender.vb
 VmixTcpSender.vb
 ```
@@ -345,6 +384,7 @@ If a TCP sender was created, dispose it during application shutdown.
 | Path | Contents |
 |---|---|
 | `VmixCommandBuilder.vb` | Safe vMix command construction and encoding |
+| `VmixFunctionCatalog.vb` | Complete vMix 29 shortcut/API function reference |
 | `IVmixSender.vb` | Protocol-independent sender contract |
 | `VmixHttpSender.vb` | HTTP transport |
 | `VmixTcpSender.vb` | Persistent TCP transport |

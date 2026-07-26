@@ -108,6 +108,7 @@
   <ItemGroup>
     <Compile Include="IVmixSender.vb" />
     <Compile Include="VmixCommandBuilder.vb" />
+    <Compile Include="VmixFunctionCatalog.vb" />
     <Compile Include="VmixHttpSender.vb" />
     <Compile Include="VmixTcpSender.vb" />
     <Compile Include="MainForm.vb">
