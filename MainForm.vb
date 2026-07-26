@@ -1,42 +1,63 @@
 ' ============================================================================
-' vMixControl - Reference/learning sample for controlling vMix
+' Main window of the vMix Control example
 ' ============================================================================
-' Shows on a single form how the three building blocks work together, the
-' same ones used in the real broadcast tools (Tennis26, SoccerClock,
-' Volleyball24):
-'   1. VmixCommandBuilder.vb  - builds "Function=X&Input=Y&SelectedName=Z&Value=W"
-'                               (or one of the other shapes, see FunctionSpec
-'                               below) and URL-encodes all dynamic parts.
-'   2. IVmixSender.vb / VmixHttpSender.vb / VmixTcpSender.vb
-'                             - translate that protocol-neutral string into
-'                               either an HTTP GET request or a TCP protocol
-'                               line.
-'   3. This form                - assembles commands through the UI, makes
-'                               every step visible (raw -> encoded ->
-'                               actually sent -> response), AND shows the
-'                               VB.NET code you'd write to reproduce exactly
-'                               that in your own project.
+' This form helps new programmers understand how a Windows Forms application
+' can send commands to vMix.
+'
+' Basic VB.NET words used in this file:
+'
+' Class
+'   A class contains data and code. MainForm represents the main window.
+'
+' Sub
+'   A Sub performs an action but does not return a value.
+'
+' Function
+'   A Function performs an action and returns a result.
+'
+' Handles
+'   Handles connects an event to a Sub. For example, a button Click event
+'   runs the matching Button_Click Sub.
+'
+' Control
+'   A control is an item on the form, such as a button, label, or text box.
+'
+' Common control name prefixes:
+'   btn = Button       lbl = Label        txt = TextBox
+'   cmb = ComboBox     rb  = RadioButton  chk = CheckBox
+'
+' The form performs these main tasks:
+'   1. Read the connection settings.
+'   2. Let the user select a vMix function.
+'   3. Build a safe command.
+'   4. Send the command using HTTP or TCP.
+'   5. Show the sent command and the response from vMix.
 Public Class MainForm
 
-    ' The sample title this demo project works with - lives at
-    ' C:\vmix\example\example_title.gtzip with the fields name.Text,
-    ' function.Text, logo.Source, bg.Fill.Color, bg_round.Fill.Color.
+    ' ------------------------------------------------------------------------
+    ' Example files and sender objects
+    ' ------------------------------------------------------------------------
+
+    ' Name and folder of the supplied example title.
     Private Const ExampleTitle As String = "example_title.gtzip"
     Private Const ExampleFolder As String = "C:\vmix\example\"
 
+    ' These objects send commands to vMix.
+    ' The program keeps both objects ready so the user can change protocol.
     Private ReadOnly httpSender As New VmixHttpSender()
     Private ReadOnly tcpSender As New VmixTcpSender()
 
-    ' Remembers, for the overlay demo button, whether the title is currently
-    ' shown, so a click reliably toggles between show/hide.
+    ' Remembers if the example title is currently visible.
     Private overlayShown As Boolean = False
 
-    ' Describes which of the three fields (Input/SelectedName/Value) a given
-    ' vMix function actually needs, plus matching preset values for
-    ' example_title.gtzip. One function table instead of four parallel
-    ' If/Select blocks in UpdateFieldAvailability/ApplyFunctionPreset/
-    ' BuildRawCommand/BuildCodeSnippet - add a new command here and the rest
-    ' of the form follows automatically.
+    ' ------------------------------------------------------------------------
+    ' Available vMix functions
+    ' ------------------------------------------------------------------------
+
+    ' Stores the information needed for one vMix function.
+    '
+    ' For example, SetText needs an input, a field name, and a new value.
+    ' OverlayInput1Out only needs the function name.
     Private Class FunctionSpec
         Public NeedsInput As Boolean = True
         Public NeedsSelectedName As Boolean = False
@@ -45,85 +66,91 @@ Public Class MainForm
         Public PresetValue As String = ""
     End Class
 
+    ' Contains the description of every function available in the list.
     Private ReadOnly functionSpecs As Dictionary(Of String, FunctionSpec) = BuildFunctionSpecs()
 
+    ' Creates the list of available vMix functions.
+    '
+    ' Each entry also contains example values for example_title.gtzip.
     Private Function BuildFunctionSpecs() As Dictionary(Of String, FunctionSpec)
         Dim specs As New Dictionary(Of String, FunctionSpec)
 
-        ' Function+Input+SelectedName+Value (BuildVmixSetCommand)
+        ' These functions change a field and therefore need a new value.
         specs("SetText") = New FunctionSpec With {.NeedsSelectedName = True, .NeedsValue = True, .PresetSelectedName = "name.Text", .PresetValue = "Test Text"}
         specs("SetImage") = New FunctionSpec With {.NeedsSelectedName = True, .NeedsValue = True, .PresetSelectedName = "logo.Source", .PresetValue = ExampleFolder & "logo.png"}
         specs("SetColor") = New FunctionSpec With {.NeedsSelectedName = True, .NeedsValue = True, .PresetSelectedName = "bg.Fill.Color", .PresetValue = "#FF2E8966"}
-        ' SetTextColour sets a text field's font color (not to be confused
-        ' with SetColor, which sets a dedicated Color/Fill layer) - accepts
-        ' both simple names ("white"/"red") and hex values.
+        ' SetTextColour changes the font color of a text field.
+        ' SetColor changes a separate color or fill layer.
         specs("SetTextColour") = New FunctionSpec With {.NeedsSelectedName = True, .NeedsValue = True, .PresetSelectedName = "name.Text", .PresetValue = "white"}
 
-        ' Function+Input+SelectedName, no Value (BuildVmixSelectCommand)
+        ' These functions show or hide a field without changing its value.
         specs("SetTextVisibleOn") = New FunctionSpec With {.NeedsSelectedName = True, .PresetSelectedName = "name.Text"}
         specs("SetTextVisibleOff") = New FunctionSpec With {.NeedsSelectedName = True, .PresetSelectedName = "name.Text"}
         specs("SetImageVisibleOn") = New FunctionSpec With {.NeedsSelectedName = True, .PresetSelectedName = "logo.Source"}
         specs("SetImageVisibleOff") = New FunctionSpec With {.NeedsSelectedName = True, .PresetSelectedName = "logo.Source"}
 
-        ' Function+Input+Value, no SelectedName (BuildVmixCommand)
+        ' This function starts one page of a title animation.
         specs("TitleBeginAnimation") = New FunctionSpec With {.NeedsValue = True, .PresetValue = "Page1"}
 
-        ' Function+Input, no SelectedName/Value (BuildVmixInputCommand)
+        ' These functions show or hide an input on Overlay 1.
         specs("OverlayInput1IN") = New FunctionSpec()
-        ' Function alone, no Input/SelectedName/Value
         specs("OverlayInput1Out") = New FunctionSpec With {.NeedsInput = False}
 
-        ' Function+Value, no Input/SelectedName (BuildVmixValueOnlyCommand) -
-        ' adds a NEW input, doesn't reference an existing one.
+        ' Addinput adds a new input to vMix.
+        ' Repeating this command creates another copy of the input.
         specs("Addinput") = New FunctionSpec With {.NeedsInput = False, .NeedsValue = True, .PresetValue = "Title|" & ExampleFolder & "example_title.gtzip"}
 
         Return specs
     End Function
 
+    ' ------------------------------------------------------------------------
+    ' Form startup and shutdown
+    ' ------------------------------------------------------------------------
+
+    ' Creates the form and all controls placed on it in the Designer.
     Public Sub New()
-        ' This call is required by the designer - without it, every control
-        ' (lblIntro, txtIp, ...) stays Nothing, since they're only
-        ' instantiated here in MainForm.Designer.vb.
         InitializeComponent()
     End Sub
 
+    ' Runs when the main window opens.
+    '
+    ' It applies the connection settings, fills the function list, and
+    ' selects the first example.
     Private Sub MainForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        lblIntro.Text =
-            "This sample project shows how vMix control works in Peter's broadcast tools:" & vbCrLf &
-            "vMix is controlled via HTTP GET (Web Controller, usually port 8088) OR via TCP (TCP Controller, usually port 8099) - both understand the same" & vbCrLf &
-            "command syntax ""Function=X&Input=Y&SelectedName=Z&Value=W"". Below you can build commands by hand, see the generated code, and send it live." & vbCrLf &
-            "Important: always send vMix commands synchronously/serially (never in parallel/asynchronously) - vMix must process them in the order they were sent (e.g. set the text first, only then reveal the overlay). Details in the comment in VmixTcpSender.vb."
-
-        lblConnHint.Text = "Enable this in vMix under Settings > Web Controller (HTTP) resp. Settings > TCP Controllers (TCP). ""Test connection"" sends an empty command - vMix still responds if it's reachable."
-
-        lblBuilderHint.Text =
-            "Choosing a Function automatically fills Input/SelectedName/Value with a matching example for example_title.gtzip - just overwrite them for your own tests." & vbCrLf &
-            "Greyed-out fields aren't needed by the selected function (see FunctionSpec in MainForm.vb - just add new commands there)." & vbCrLf &
-            """Don't encode Value"" applies to any function with a Value field - useful e.g. to compare Addinput paths with/without encoding."
-
         ApplyConnectionSettings()
 
+        ' Add the commands shown in the Function list.
         cmbFunction.Items.Clear()
         cmbFunction.Items.AddRange({"SetText", "SetImage", "SetColor", "SetTextColour", "SetTextVisibleOn", "SetTextVisibleOff", "SetImageVisibleOn", "SetImageVisibleOff", "TitleBeginAnimation", "OverlayInput1IN", "OverlayInput1Out", "Addinput"})
-        ' Triggers cmbFunction_SelectedIndexChanged (ComboBox.SelectedIndex
-        ' starts at -1) - that fills the fields, availability, and preview in
-        ' one go, no separate call needed here.
+
+        ' Select the first example.
+        ' This also updates the fields and command preview.
         cmbFunction.SelectedIndex = 0
     End Sub
 
+    ' Runs when the main window closes.
+    '
+    ' The TCP sender keeps a network connection open while the program runs.
+    ' Dispose closes this connection and releases its resources.
     Private Sub MainForm_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         tcpSender.Dispose()
     End Sub
 
+    ' ------------------------------------------------------------------------
+    ' Function selection
+    ' ------------------------------------------------------------------------
+
+    ' Runs when the user selects another vMix function.
+    '
+    ' It enables the required fields, inserts example values, and updates
+    ' the command preview.
     Private Sub cmbFunction_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFunction.SelectedIndexChanged
         UpdateFieldAvailability()
         ApplyFunctionPreset()
         UpdatePreview()
     End Sub
 
-    ' Greys out the fields that the currently selected function doesn't use
-    ' at all - makes it immediately visible which vMix commands need which
-    ' parameters.
+    ' Disables fields that are not needed by the selected vMix function.
     Private Sub UpdateFieldAvailability()
         Dim spec = functionSpecs(cmbFunction.Text)
         txtInput.Enabled = spec.NeedsInput
@@ -131,10 +158,7 @@ Public Class MainForm
         txtValue.Enabled = spec.NeedsValue
     End Sub
 
-    ' Suggests a sensible example for the selected function, matching
-    ' example_title.gtzip (C:\vmix\example\). Deliberately overwrites the
-    ' fields on every function change, so a working example is always shown
-    ' instead of leftovers from the previous choice.
+    ' Inserts working example values for the selected vMix function.
     Private Sub ApplyFunctionPreset()
         Dim spec = functionSpecs(cmbFunction.Text)
         txtInput.Text = If(spec.NeedsInput, ExampleTitle, "")
@@ -142,13 +166,14 @@ Public Class MainForm
         txtValue.Text = spec.PresetValue
     End Sub
 
-    ' Pushes IP/port from the textboxes into both senders. Called once at
-    ' startup (see MainForm_Load) and again whenever one of the connection
-    ' fields actually changes (see ConnectionField_Changed below) - NOT on
-    ' every single send. Re-parsing the same strings before every command
-    ' would be pointless work when nothing changed since the last one; the
-    ' real broadcast tools apply IP/port/protocol at clear points too (form
-    ' load, "Save Settings"), not inline in the send path.
+    ' ------------------------------------------------------------------------
+    ' Connection settings
+    ' ------------------------------------------------------------------------
+
+    ' Copies the IP address and port numbers from the form into both senders.
+    '
+    ' This does not contact vMix. A connection is made later when a command
+    ' is sent or when the user tests the connection.
     Private Sub ApplyConnectionSettings()
         httpSender.Ip = txtIp.Text.Trim()
         tcpSender.Ip = txtIp.Text.Trim()
@@ -160,13 +185,12 @@ Public Class MainForm
         If Integer.TryParse(txtTcpPort.Text.Trim(), tcpPort) Then tcpSender.Port = tcpPort
     End Sub
 
+    ' Runs when the user changes the IP address, a port, or the protocol.
     Private Sub ConnectionField_Changed(sender As Object, e As EventArgs) Handles txtIp.TextChanged, txtHttpPort.TextChanged, txtTcpPort.TextChanged, rbHttp.CheckedChanged, rbTcp.CheckedChanged
         ApplyConnectionSettings()
     End Sub
 
-    ' Both senders are always kept up to date by ApplyConnectionSettings -
-    ' picking one here is just a matter of which protocol is currently
-    ' selected, no parsing needed.
+    ' Returns the sender selected by the HTTP or TCP radio button.
     Private Function CurrentSender() As IVmixSender
         If rbHttp.Checked Then
             Return httpSender
@@ -175,16 +199,17 @@ Public Class MainForm
         End If
     End Function
 
+    ' Returns the name of the protocol selected on the form.
     Private Function ProtocolLabel() As String
         Return If(rbHttp.Checked, "HTTP", "TCP")
     End Function
 
+    ' Runs when the user clicks "Test connection".
+    '
+    ' It sends an empty request. If vMix answers, the selected controller
+    ' is available.
     Private Sub btnTestConnection_Click(sender As Object, e As EventArgs) Handles btnTestConnection.Click
         Dim activeSender = CurrentSender()
-        ' An empty command is enough as a reachability test - vMix still
-        ' answers an empty Function value as long as the controller is
-        ' reachable; only if the connection itself fails does the "Error
-        ' ..." message from the respective sender come back.
         Dim result As String = activeSender.Send("")
         Dim ok As Boolean = Not result.StartsWith("Error")
 
@@ -192,15 +217,13 @@ Public Class MainForm
         lblConnectionStatus.ForeColor = If(ok, Color.Green, Color.Red)
     End Sub
 
-    ' Fetches the current vMix status and shows it in its own window -
-    ' ".../api/?" with no Function parameter at all returns an XML list of
-    ' every loaded input with its exact field names (<text name="...">,
-    ' <image name="...">, ...) - the Title Editor barely shows spaces in
-    ' there, the XML response shows them exactly. Deliberately always uses
-    ' HTTP, regardless of the HTTP/TCP choice above.
+    ' Fetches the current vMix status and shows it in a new window.
+    '
+    ' The returned XML contains the exact names of inputs and title fields.
+    ' This helps when a space is difficult to see in the vMix Title Editor.
+    '
+    ' The status document is always requested through HTTP.
     Private Sub btnFetchState_Click(sender As Object, e As EventArgs) Handles btnFetchState.Click
-        ' httpSender.Ip/Port are already current (see ApplyConnectionSettings) -
-        ' no need to re-read the textboxes here.
         Dim xml As String = httpSender.Send("")
         If xml.StartsWith("Error") Then
             MessageBox.Show(xml, "Could not fetch vMix status", MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -212,14 +235,20 @@ Public Class MainForm
         End Using
     End Sub
 
-    ' Runs on every change to Function/Input/SelectedName/Value/the encoding
-    ' checkbox - updates the raw command, encoding preview, and code sample
-    ' IMMEDIATELY, without contacting vMix at all. Only clicking "Build and
-    ' send command" actually sends anything.
+    ' ------------------------------------------------------------------------
+    ' Command builder and preview
+    ' ------------------------------------------------------------------------
+
+    ' Runs when the user changes one of the command fields.
+    '
+    ' It updates the preview only. It does not send anything to vMix.
     Private Sub BuilderField_Changed(sender As Object, e As EventArgs) Handles txtInput.TextChanged, txtSelectedName.TextChanged, txtValue.TextChanged, chkRawValue.CheckedChanged
         UpdatePreview()
     End Sub
 
+    ' Shows the command, encoding result, and example VB.NET code.
+    '
+    ' This method does not send anything to vMix.
     Private Sub UpdatePreview()
         Dim func As String = cmbFunction.Text
         Dim input As String = txtInput.Text
@@ -241,15 +270,15 @@ Public Class MainForm
         txtCodeSnippet.Text = BuildCodeSnippet(spec, func, input, selectedName, value)
     End Sub
 
-    ' Builds the protocol-neutral "Function=...&..." string matching the
-    ' FunctionSpec - which of the four BuildVmix... shapes gets used only
-    ' depends on which fields the function actually needs.
+    ' Builds the command required by the selected vMix function.
+    '
+    ' Different functions need different parameters. This method chooses
+    ' the correct builder function.
     Private Function BuildRawCommand(spec As FunctionSpec, func As String, input As String, selectedName As String, value As String, skipValueEncoding As Boolean) As String
         If spec.NeedsSelectedName AndAlso spec.NeedsValue Then
             If skipValueEncoding Then
-                ' Test mode: append Value unchanged - Input/SelectedName
-                ' still get encoded; a space in the title/field name is a
-                ' separate, independent problem (see VmixCommandBuilder.vb).
+                ' Test mode: send Value without encoding it.
+                ' Input and SelectedName are still encoded.
                 Return "Function=" & func & "&Input=" & EncodeVmixValue(input) & "&SelectedName=" & EncodeVmixValue(selectedName) & "&Value=" & value
             End If
             Return BuildVmixSetCommand(func, input, selectedName, value)
@@ -277,10 +306,9 @@ Public Class MainForm
         End If
     End Function
 
-    ' Shows not just the current action as code, but the complete
-    ' integration: which files you need, how to set up a sender, and how a
-    ' button click builds and sends a command from that - exactly the
-    ' questions someone new to this system asks first.
+    ' Creates the VB.NET example shown at the bottom of the form.
+    '
+    ' The example changes when the user selects another vMix function.
     Private Function BuildCodeSnippet(spec As FunctionSpec, func As String, input As String, selectedName As String, value As String) As String
         Dim i As String = EscapeForVbString(input)
         Dim sName As String = EscapeForVbString(selectedName)
@@ -301,12 +329,6 @@ Public Class MainForm
             builderCall = $"BuildVmixInputCommand(""{func}"", """")"
         End If
 
-        ' This mirrors exactly what MainForm.vb itself does (httpSender/
-        ' tcpSender fields, ApplyConnectionSettings() applied at startup and
-        ' on change events rather than on every send, CurrentSender() just
-        ' picking by rbHttp.Checked) - not a simplified stand-in. Swap in
-        ' your own controls' names, or replace them with fixed values/
-        ' settings if your project has no such UI.
         Return "' 1) Copy these 4 files into your project:" & vbCrLf &
             "'    IVmixSender.vb, VmixHttpSender.vb, VmixTcpSender.vb, VmixCommandBuilder.vb" & vbCrLf &
             "'" & vbCrLf &
@@ -340,17 +362,23 @@ Public Class MainForm
             "End Sub"
     End Function
 
+    ' Adds quotation marks correctly when text is shown as VB.NET code.
     Private Function EscapeForVbString(s As String) As String
         Return If(s, "").Replace("""", """""")
     End Function
 
+    ' ------------------------------------------------------------------------
+    ' Sending commands and example buttons
+    ' ------------------------------------------------------------------------
+
+    ' Runs when the user clicks "Build and send command".
     Private Sub btnBuildAndSend_Click(sender As Object, e As EventArgs) Handles btnBuildAndSend.Click
         SendCurrentBuilderCommand()
     End Sub
 
-    ' The heart of the demo: refreshes the preview (in case it hasn't run
-    ' yet), sends the command via the currently selected sender, and finally
-    ' shows what actually went over the wire as well as vMix's response.
+    ' Sends the current command to vMix.
+    '
+    ' It also displays what was sent and the response returned by vMix.
     Private Sub SendCurrentBuilderCommand()
         UpdatePreview()
         Dim rawCommand As String = txtRawCommand.Text
@@ -361,32 +389,30 @@ Public Class MainForm
         txtResponse.Text = result
     End Sub
 
+    ' Runs when the user clicks the special-character example.
+    '
+    ' The example contains characters that must be encoded in an API command.
     Private Sub btnDemoSpecialChars_Click(sender As Object, e As EventArgs) Handles btnDemoSpecialChars.Click
-        ' Deliberately chosen characters that have a special meaning in a
-        ' URL/query string (&, #, %, space, accented character) - shows
-        ' exactly why EncodeVmixValue is needed: without encoding, the "&"
-        ' alone would split the command into a new parameter mid-Value.
         cmbFunction.SelectedItem = "SetText"
         txtValue.Text = "Team A & Co/100% Café #1"
         SendCurrentBuilderCommand()
     End Sub
 
+    ' Runs when the user clicks the "Set image" example button.
     Private Sub btnDemoSetImage_Click(sender As Object, e As EventArgs) Handles btnDemoSetImage.Click
         cmbFunction.SelectedItem = "SetImage"
         SendCurrentBuilderCommand()
     End Sub
 
+    ' Shows the example title when it is hidden and hides it when it is shown.
     Private Sub btnDemoOverlay_Click(sender As Object, e As EventArgs) Handles btnDemoOverlay.Click
         cmbFunction.SelectedItem = If(overlayShown, "OverlayInput1Out", "OverlayInput1IN")
         SendCurrentBuilderCommand()
         overlayShown = Not overlayShown
     End Sub
 
+    ' Makes the example color layer fully transparent.
     Private Sub btnDemoTransparent_Click(sender As Object, e As EventArgs) Handles btnDemoTransparent.Click
-        ' Shows how to make a color fully transparent (alpha 00) - e.g. to
-        ' "hide" a Color/Fill layer. Unlike text or image fields, there's no
-        ' dedicated VisibleOff command for that (SetColorVisibleOff doesn't
-        ' exist) - the usual approach is to make the color itself transparent.
         cmbFunction.SelectedItem = "SetColor"
         txtValue.Text = "#00000000"
         SendCurrentBuilderCommand()

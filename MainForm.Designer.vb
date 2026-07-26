@@ -112,6 +112,7 @@ Partial Class MainForm
         Me.lblIntro.Name = "lblIntro"
         Me.lblIntro.Size = New System.Drawing.Size(970, 100)
         Me.lblIntro.TabIndex = 0
+        Me.lblIntro.Text = "This example shows how a Windows Forms program can control vMix." & Global.Microsoft.VisualBasic.ChrW(13) & Global.Microsoft.VisualBasic.ChrW(10) & "Choose HTTP or TCP, build a command, and send it to vMix." & Global.Microsoft.VisualBasic.ChrW(13) & Global.Microsoft.VisualBasic.ChrW(10) & "The program shows the safe command, what was sent, the vMix response, and example VB.NET code." & Global.Microsoft.VisualBasic.ChrW(13) & Global.Microsoft.VisualBasic.ChrW(10) & "Send related commands one after another so vMix processes them in the correct order."
         '
         'grpConnection
         '
@@ -232,6 +233,7 @@ Partial Class MainForm
         Me.lblConnHint.Name = "lblConnHint"
         Me.lblConnHint.Size = New System.Drawing.Size(940, 20)
         Me.lblConnHint.TabIndex = 10
+        Me.lblConnHint.Text = "Enable Web Controller for HTTP or TCP Controllers for TCP in vMix Settings. Test connection checks if vMix can be reached."
         '
         'grpBuilder
         '
@@ -379,6 +381,7 @@ Partial Class MainForm
         Me.lblBuilderHint.Name = "lblBuilderHint"
         Me.lblBuilderHint.Size = New System.Drawing.Size(940, 50)
         Me.lblBuilderHint.TabIndex = 13
+        Me.lblBuilderHint.Text = "Choose a Function to load working example values for example_title.gtzip." & Global.Microsoft.VisualBasic.ChrW(13) & Global.Microsoft.VisualBasic.ChrW(10) & "Grey fields are not needed by the selected function. Change the other fields for your own test." & Global.Microsoft.VisualBasic.ChrW(13) & Global.Microsoft.VisualBasic.ChrW(10) & """Don't encode Value"" is a test option that shows why special characters must be encoded."
         '
         'grpVisualize
         '
