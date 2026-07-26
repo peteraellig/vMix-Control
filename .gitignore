@@ -1,0 +1,16 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build and publish output
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+
+# Signing keys
+*.pfx
+
+# OS files
+Thumbs.db
+Desktop.ini
