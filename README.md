@@ -10,6 +10,7 @@ without changing application logic.
 ---
 
 ## Overview
+<img src="example.png" alt="Example vMix title" width="200">
 
 vMix Control is a small demonstration and reference application that explains
 the communication layer used by several broadcast tools in this GitHub
@@ -26,7 +27,7 @@ Instead, application code calls a small set of command-building functions.
 Every dynamic component is encoded in one place, and the finished
 protocol-neutral command can be sent through either HTTP or TCP.
 
-<img src="example.png" alt="Example vMix title" width="200">
+
 
 ## The core design
 
