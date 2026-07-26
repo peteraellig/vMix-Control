@@ -289,19 +289,29 @@ Public Class MainForm
             builderCall = $"BuildVmixInputCommand(""{func}"", """")"
         End If
 
+        ' This mirrors exactly what MainForm.vb itself does (httpSender/
+        ' tcpSender fields + CurrentSender()) - not a simplified stand-in.
+        ' If your own project only ever uses one protocol, you can of course
+        ' drop the unused sender and the CurrentSender() helper and just
+        ' keep a single field instead.
         Return "' 1) Copy these 4 files into your project:" & vbCrLf &
             "'    IVmixSender.vb, VmixHttpSender.vb, VmixTcpSender.vb, VmixCommandBuilder.vb" & vbCrLf &
             "'" & vbCrLf &
-            "' 2) Add a sender as a field in your form (once):" & vbCrLf &
-            "Private ReadOnly vmixSender As New VmixHttpSender() With {.Ip = ""127.0.0.1"", .Port = 8088}" & vbCrLf &
-            "' (for TCP: New VmixTcpSender() With {.Ip = ""127.0.0.1"", .Port = 8099} -" & vbCrLf &
-            "'  then call vmixSender.Dispose() when the form closes, see" & vbCrLf &
-            "'  MainForm_FormClosing in this project)" & vbCrLf &
+            "' 2) Keep one sender per protocol alive as fields, and a helper that picks" & vbCrLf &
+            "'    the one you actually want to use:" & vbCrLf &
+            "Private ReadOnly httpSender As New VmixHttpSender() With {.Ip = ""127.0.0.1"", .Port = 8088}" & vbCrLf &
+            "Private ReadOnly tcpSender As New VmixTcpSender() With {.Ip = ""127.0.0.1"", .Port = 8099}" & vbCrLf &
+            "Private useHttp As Boolean = True   ' e.g. backed by a settings value or checkbox" & vbCrLf &
+            vbCrLf &
+            "Private Function CurrentSender() As IVmixSender" & vbCrLf &
+            "    Return If(useHttp, CType(httpSender, IVmixSender), tcpSender)" & vbCrLf &
+            "End Function" & vbCrLf &
+            "' (dispose tcpSender when your form closes, see MainForm_FormClosing here)" & vbCrLf &
             vbCrLf &
             "' 3) In a button click, build the command and send it:" & vbCrLf &
             "Private Sub btnMyButton_Click(sender As Object, e As EventArgs) Handles btnMyButton.Click" & vbCrLf &
             "    Dim command As String = " & builderCall & vbCrLf &
-            "    vmixSender.Send(command)" & vbCrLf &
+            "    CurrentSender().Send(command)" & vbCrLf &
             "End Sub"
     End Function
 
