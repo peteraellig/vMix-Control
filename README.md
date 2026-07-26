@@ -26,7 +26,7 @@ Instead, application code calls a small set of command-building functions.
 Every dynamic component is encoded in one place, and the finished
 protocol-neutral command can be sent through either HTTP or TCP.
 
-![Example vMix title](example.png width="200")
+<img src="example.png" alt="Example vMix title" width="200">
 
 ## The core design
 
