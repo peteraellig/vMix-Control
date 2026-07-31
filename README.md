@@ -395,5 +395,7 @@ If a TCP sender was created, dispose it during application shutdown.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0. See
-[`LICENSE`](LICENSE) for the full license text.
+This project is released under the [BSD Zero Clause License (0BSD)](LICENSE).
+You may use, copy, modify, and distribute it for any purpose, with or without
+fee, and without attribution.
+
